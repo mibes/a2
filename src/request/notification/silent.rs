@@ -28,6 +28,7 @@ use std::collections::BTreeMap;
 /// ```
 pub struct SilentNotificationBuilder {
     content_available: u8,
+    badge: Option<u32>,
 }
 
 impl SilentNotificationBuilder {
@@ -46,7 +47,10 @@ impl SilentNotificationBuilder {
     /// # }
     /// ```
     pub fn new() -> SilentNotificationBuilder {
-        SilentNotificationBuilder { content_available: 1 }
+        SilentNotificationBuilder {
+            content_available: 1,
+            badge: None,
+        }
     }
 }
 
@@ -61,7 +65,7 @@ impl<'a> NotificationBuilder<'a> for SilentNotificationBuilder {
         Payload {
             aps: APS {
                 alert: None,
-                badge: None,
+                badge: self.badge,
                 sound: None,
                 content_available: Some(self.content_available),
                 category: None,
@@ -72,6 +76,14 @@ impl<'a> NotificationBuilder<'a> for SilentNotificationBuilder {
             options,
             data: BTreeMap::new(),
         }
+    }
+}
+
+impl SilentNotificationBuilder {
+    /// A number to show on a badge on top of the app icon.
+    pub fn set_badge(&mut self, badge: u32) -> &mut Self {
+        self.badge = Some(badge);
+        self
     }
 }
 
