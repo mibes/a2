@@ -1,5 +1,5 @@
 use crate::request::notification::{NotificationBuilder, NotificationOptions};
-use crate::request::payload::{APSAlert, InterruptionLevel, Payload, APS};
+use crate::request::payload::{APSAlert, InterruptionLevel, Payload, PlainAlert, APS};
 use std::collections::BTreeMap;
 
 /// A builder to create a simple APNs notification payload.
@@ -8,8 +8,9 @@ use std::collections::BTreeMap;
 ///
 /// ```rust
 /// # use a2::request::notification::{NotificationBuilder, PlainNotificationBuilder};
+/// # use a2::request::payload::PlainAlert;
 /// # fn main() {
-/// let mut builder = PlainNotificationBuilder::new("Hi there");
+/// let mut builder = PlainNotificationBuilder::new(PlainAlert::new("Hi there"));
 /// builder.set_badge(420);
 /// builder.set_category("cat1");
 /// builder.set_sound("prööt");
@@ -18,7 +19,7 @@ use std::collections::BTreeMap;
 /// # }
 /// ```
 pub struct PlainNotificationBuilder<'a> {
-    body: &'a str,
+    alert: PlainAlert<'a>,
     badge: Option<u32>,
     sound: Option<&'a str>,
     category: Option<&'a str>,
@@ -30,19 +31,20 @@ impl<'a> PlainNotificationBuilder<'a> {
     ///
     /// ```rust
     /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+    /// # use a2::request::payload::PlainAlert;
     /// # fn main() {
-    /// let payload = PlainNotificationBuilder::new("a body")
+    /// let payload = PlainNotificationBuilder::new(PlainAlert::new("a body"))
     ///     .build("token", Default::default());
     ///
     /// assert_eq!(
-    ///     "{\"aps\":{\"alert\":\"a body\"}}",
+    ///     "{\"aps\":{\"alert\":{\"body\":\"a body\"}}}",
     ///     &payload.to_json_string().unwrap()
     /// );
     /// # }
     /// ```
-    pub fn new(body: &'a str) -> PlainNotificationBuilder<'a> {
+    pub fn new(body: PlainAlert<'a>) -> PlainNotificationBuilder<'a> {
         PlainNotificationBuilder {
-            body,
+            alert: body,
             badge: None,
             sound: None,
             category: None,
@@ -54,13 +56,14 @@ impl<'a> PlainNotificationBuilder<'a> {
     ///
     /// ```rust
     /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+    /// # use a2::request::payload::PlainAlert;
     /// # fn main() {
-    /// let mut builder = PlainNotificationBuilder::new("a body");
+    /// let mut builder = PlainNotificationBuilder::new(PlainAlert::new("a body"));
     /// builder.set_badge(4);
     /// let payload = builder.build("token", Default::default());
     ///
     /// assert_eq!(
-    ///     "{\"aps\":{\"alert\":\"a body\",\"badge\":4}}",
+    ///     "{\"aps\":{\"alert\":{\"body\":\"a body\"},\"badge\":4}}",
     ///     &payload.to_json_string().unwrap()
     /// );
     /// # }
@@ -74,13 +77,14 @@ impl<'a> PlainNotificationBuilder<'a> {
     ///
     /// ```rust
     /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+    /// # use a2::request::payload::PlainAlert;
     /// # fn main() {
-    /// let mut builder = PlainNotificationBuilder::new("a body");
+    /// let mut builder = PlainNotificationBuilder::new(PlainAlert::new("a body"));
     /// builder.set_sound("meow");
     /// let payload = builder.build("token", Default::default());
     ///
     /// assert_eq!(
-    ///     "{\"aps\":{\"alert\":\"a body\",\"sound\":\"meow\"}}",
+    ///     "{\"aps\":{\"alert\":{\"body\":\"a body\"},\"sound\":\"meow\"}}",
     ///     &payload.to_json_string().unwrap()
     /// );
     /// # }
@@ -95,13 +99,14 @@ impl<'a> PlainNotificationBuilder<'a> {
     ///
     /// ```rust
     /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+    /// # use a2::request::payload::PlainAlert;
     /// # fn main() {
-    /// let mut builder = PlainNotificationBuilder::new("a body");
+    /// let mut builder = PlainNotificationBuilder::new(PlainAlert::new("a body"));
     /// builder.set_category("cat1");
     /// let payload = builder.build("token", Default::default());
     ///
     /// assert_eq!(
-    ///     "{\"aps\":{\"alert\":\"a body\",\"category\":\"cat1\"}}",
+    ///     "{\"aps\":{\"alert\":{\"body\":\"a body\"},\"category\":\"cat1\"}}",
     ///     &payload.to_json_string().unwrap()
     /// );
     /// # }
@@ -117,14 +122,14 @@ impl<'a> PlainNotificationBuilder<'a> {
     ///
     /// ```rust
     /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
-    /// # use a2::request::payload::InterruptionLevel;
+    /// # use a2::request::payload::{InterruptionLevel, PlainAlert};
     /// # fn main() {
-    /// let mut builder = PlainNotificationBuilder::new("a body");
+    /// let mut builder = PlainNotificationBuilder::new(PlainAlert::new("a body"));
     /// builder.set_interruption_level(InterruptionLevel::TimeSensitive);
     /// let payload = builder.build("token", Default::default());
     ///
     /// assert_eq!(
-    ///     "{\"aps\":{\"alert\":\"a body\",\"interruption-level\":\"time-sensitive\"}}",
+    ///     "{\"aps\":{\"alert\":{\"body\":\"a body\"},\"interruption-level\":\"time-sensitive\"}}",
     ///     &payload.to_json_string().unwrap()
     /// );
     /// # }
@@ -139,7 +144,7 @@ impl<'a> NotificationBuilder<'a> for PlainNotificationBuilder<'a> {
     fn build(self, device_token: &'a str, options: NotificationOptions<'a>) -> Payload<'a> {
         Payload {
             aps: APS {
-                alert: Some(APSAlert::Plain(self.body)),
+                alert: Some(APSAlert::Plain(self.alert)),
                 badge: self.badge,
                 sound: self.sound,
                 content_available: None,
@@ -163,14 +168,16 @@ mod tests {
 
     #[test]
     fn test_plain_notification_with_text_only() {
-        let payload = PlainNotificationBuilder::new("kulli")
+        let payload = PlainNotificationBuilder::new(PlainAlert::new("kulli"))
             .build("device-token", Default::default())
             .to_json_string()
             .unwrap();
 
         let expected_payload = json!({
             "aps": {
-                "alert": "kulli",
+                "alert": {
+                    "body": "kulli"
+                },
             }
         })
         .to_string();
@@ -180,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_plain_notification_with_full_data() {
-        let mut builder = PlainNotificationBuilder::new("Hi there");
+        let mut builder = PlainNotificationBuilder::new(PlainAlert::new("Hi there"));
         builder.set_badge(420);
         builder.set_category("cat1");
         builder.set_sound("prööt");
@@ -192,7 +199,9 @@ mod tests {
 
         let expected_payload = json!({
             "aps": {
-                "alert": "Hi there",
+                "alert": {
+                    "body": "Hi there"
+                },
                 "badge": 420,
                 "category": "cat1",
                 "sound": "prööt"
@@ -225,7 +234,8 @@ mod tests {
             key_struct: SubData { nothing: "here" },
         };
 
-        let mut payload = PlainNotificationBuilder::new("kulli").build("device-token", Default::default());
+        let mut payload =
+            PlainNotificationBuilder::new(PlainAlert::new("kulli")).build("device-token", Default::default());
 
         payload.add_custom_data("custom", &test_data).unwrap();
 
@@ -241,7 +251,9 @@ mod tests {
                 }
             },
             "aps": {
-                "alert": "kulli",
+                "alert": {
+                    "body": "kulli"
+                },
             }
         })
         .to_string();

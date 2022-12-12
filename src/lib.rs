@@ -35,10 +35,11 @@
 //!
 //! ```no_run
 //! # use a2::{PlainNotificationBuilder, NotificationBuilder, Client, Endpoint};
+//! # use a2::request::payload::PlainAlert;
 //! # use std::fs::File;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! let mut builder = PlainNotificationBuilder::new("Hi there");
+//! let mut builder = PlainNotificationBuilder::new(PlainAlert::new("Hi there"));
 //! builder.set_badge(420);
 //! builder.set_category("cat1");
 //! builder.set_sound("ping.flac");

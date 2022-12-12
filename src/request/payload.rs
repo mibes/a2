@@ -131,11 +131,61 @@ pub struct APS<'a> {
 #[serde(untagged)]
 pub enum APSAlert<'a> {
     /// Text-only notification.
-    Plain(&'a str),
+    Plain(PlainAlert<'a>),
     /// A rich localized notification.
     Localized(LocalizedAlert<'a>),
     /// Safari web push notification
     WebPush(WebPushAlert<'a>),
+}
+
+/// Creates a new builder with a title, subtitle and body in the alert.
+///
+/// ```rust
+/// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+/// # use a2::request::payload::PlainAlert;
+/// # fn main() {
+/// let alert = PlainAlert::new("a body").set_title("a title").set_subtitle("a subtitle");
+/// let payload = PlainNotificationBuilder::new(alert)
+///     .build("token", Default::default());
+///
+/// assert_eq!(
+///     "{\"aps\":{\"alert\":{\"body\":\"a body\",\"subtitle\":\"a subtitle\",\"title\":\"a title\"}}}",
+///     &payload.to_json_string().unwrap()
+/// );
+/// # }
+/// ```
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct PlainAlert<'a> {
+    /// The title of the notification. Apple Watch displays this string in the short look notification interface.
+    /// Specify a string that’s quickly understood by the user.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<&'a str>,
+    /// Additional information that explains the purpose of the notification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<&'a str>,
+    /// The content of the alert message.
+    pub body: &'a str,
+}
+
+impl<'a> PlainAlert<'a> {
+    pub fn new(body: &'a str) -> Self {
+        Self {
+            title: None,
+            subtitle: None,
+            body,
+        }
+    }
+
+    pub fn set_title(mut self, title: &'a str) -> Self {
+        self.title = Some(title);
+        self
+    }
+
+    pub fn set_subtitle(mut self, subtitle: &'a str) -> Self {
+        self.subtitle = Some(subtitle);
+        self
+    }
 }
 
 #[derive(Debug, Clone)]

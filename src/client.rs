@@ -175,6 +175,7 @@ mod tests {
     use crate::request::notification::NotificationBuilder;
     use crate::request::notification::PlainNotificationBuilder;
     use crate::request::notification::{CollapseId, NotificationOptions, Priority};
+    use crate::request::payload::PlainAlert;
     use crate::signer::Signer;
     use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
     use hyper::Method;
@@ -190,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_production_request_uri() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload);
@@ -201,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_sandbox_request_uri() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Sandbox);
         let request = client.build_request(payload);
@@ -212,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_request_method() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload);
@@ -222,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_request_content_type() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload);
@@ -232,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_request_content_length() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload.clone());
@@ -244,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_request_authorization_with_no_signer() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload);
@@ -262,7 +263,7 @@ mod tests {
         )
         .unwrap();
 
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), Some(signer), Endpoint::Production);
         let request = client.build_request(payload);
@@ -272,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_request_with_default_priority() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload);
@@ -283,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_request_with_normal_priority() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -302,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_request_with_high_priority() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -321,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_request_with_default_apns_id() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build("a_test_id", Default::default());
 
@@ -334,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_request_with_an_apns_id() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -353,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_request_with_default_apns_expiration() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build("a_test_id", Default::default());
 
@@ -366,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_request_with_an_apns_expiration() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -385,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_request_with_default_apns_collapse_id() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build("a_test_id", Default::default());
 
@@ -398,7 +399,7 @@ mod tests {
 
     #[test]
     fn test_request_with_an_apns_collapse_id() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -417,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_request_with_default_apns_topic() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build("a_test_id", Default::default());
 
@@ -430,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_request_with_an_apns_topic() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
 
         let payload = builder.build(
             "a_test_id",
@@ -449,7 +450,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_body() {
-        let builder = PlainNotificationBuilder::new("test");
+        let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
         let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
         let request = client.build_request(payload.clone());

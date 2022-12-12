@@ -1,4 +1,6 @@
-use a2::{Client, Endpoint, NotificationBuilder, NotificationOptions, PlainNotificationBuilder};
+use a2::{
+    request::payload::PlainAlert, Client, Endpoint, NotificationBuilder, NotificationOptions, PlainNotificationBuilder,
+};
 use argparse::{ArgumentParser, Store, StoreOption, StoreTrue};
 use pretty_env_logger;
 use std::fs::File;
@@ -53,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     // Notification payload
-    let mut builder = PlainNotificationBuilder::new(message.as_ref());
+    let mut builder = PlainNotificationBuilder::new(PlainAlert::new(message.as_ref()));
     builder.set_sound("default");
     builder.set_badge(1u32);
 
