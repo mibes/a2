@@ -1,7 +1,10 @@
-use crate::request::notification::{NotificationBuilder, NotificationOptions};
-use crate::request::payload::{APSAlert, Payload, APS};
-
+use serde::Serialize;
 use std::{borrow::Cow, collections::BTreeMap};
+
+use crate::request::{
+    notification::{NotificationBuilder, NotificationOptions},
+    payload::{APSAlert, Payload, APS},
+};
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -316,6 +319,7 @@ impl<'a> NotificationBuilder<'a> for LocalizedNotificationBuilder<'a> {
                 category: self.category,
                 mutable_content: Some(self.mutable_content),
                 url_args: None,
+                interruption_level: None,
             },
             device_token,
             options,

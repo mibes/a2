@@ -1,5 +1,6 @@
 use crate::error::Error;
 use base64::encode;
+use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::{
     sync::RwLock,

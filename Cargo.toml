@@ -2,23 +2,21 @@
 name = "a2"
 version = "0.6.2"
 authors = [
-  "Harry Bairstow <harry@walletconnect.com>",
-  "Julius de Bruijn <julius@nauk.io>",
-  "Sergey Tkachenko <seriy.tkachenko@gmail.com>", 
+    "Harry Bairstow <harry@walletconnect.com>",
+    "Julius de Bruijn <julius@nauk.io>",
+    "Sergey Tkachenko <seriy.tkachenko@gmail.com>",
 ]
 license = "MIT"
-readme  = "README.md"
+readme = "README.md"
 description = "A native, asynchronous Apple push notification client"
-keywords    = ["apns", "apple", "push", "async", "http2"]
-repository  = "https://github.com/walletconnect/a2.git"
-homepage    = "https://github.com/walletconnect/a2"
+keywords = ["apns", "apple", "push", "async", "http2"]
+repository = "https://github.com/walletconnect/a2.git"
+homepage = "https://github.com/walletconnect/a2"
 documentation = "https://docs.rs/a2"
 edition = "2018"
 
 [dependencies]
-serde = "1"
-erased-serde = "0.3"
-serde_derive = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
 openssl = "0.10"

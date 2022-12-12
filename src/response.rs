@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use serde::Deserialize;
+
 /// The response data from APNs.
 #[derive(Debug)]
 pub struct Response {
@@ -27,7 +29,7 @@ pub struct Response {
 }
 
 /// The response body from APNs. Only available for errors.
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct ErrorBody {
     /// The error indicating the reason for the failure.
     pub reason: ErrorReason,
@@ -42,7 +44,7 @@ pub struct ErrorBody {
 }
 
 /// A description what went wrong with the push notification.
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub enum ErrorReason {
     /// The collapse identifier exceeds the maximum allowed size.
     BadCollapseId,

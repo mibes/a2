@@ -2,7 +2,7 @@
 
 use crate::error::Error;
 use crate::request::notification::{LocalizedAlert, NotificationOptions, WebPushAlert};
-use erased_serde::Serialize;
+use serde::Serialize;
 use serde_json::{self, Value};
 use std::collections::BTreeMap;
 
@@ -50,7 +50,7 @@ impl<'a> Payload<'a> {
     /// Using a custom struct:
     ///
     /// ```rust
-    /// # #[macro_use] extern crate serde_derive;
+    /// # use serde::Serialize;
     /// # use a2::request::notification::{SilentNotificationBuilder, NotificationBuilder};
     /// # fn main() {
     /// #[derive(Serialize)]
@@ -69,7 +69,7 @@ impl<'a> Payload<'a> {
     /// );
     /// # }
     /// ```
-    pub fn add_custom_data(&mut self, root_key: &'a str, data: &dyn Serialize) -> Result<&mut Self, Error> {
+    pub fn add_custom_data(&mut self, root_key: &'a str, data: impl Serialize) -> Result<&mut Self, Error> {
         self.data.insert(root_key, serde_json::to_value(data)?);
 
         Ok(self)
@@ -120,6 +120,10 @@ pub struct APS<'a> {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url_args: Option<&'a [&'a str]>,
+
+    /// Set to one for silent notifications.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interruption_level: Option<InterruptionLevel>,
 }
 
 /// Different notification content types.
@@ -132,4 +136,26 @@ pub enum APSAlert<'a> {
     Localized(LocalizedAlert<'a>),
     /// Safari web push notification
     WebPush(WebPushAlert<'a>),
+}
+
+#[derive(Debug, Clone)]
+pub enum InterruptionLevel {
+    Passive,
+    Active,
+    TimeSensitive,
+    Critical,
+}
+
+impl Serialize for InterruptionLevel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            InterruptionLevel::Passive => serializer.serialize_str("passive"),
+            InterruptionLevel::Active => serializer.serialize_str("active"),
+            InterruptionLevel::TimeSensitive => serializer.serialize_str("time-sensitive"),
+            InterruptionLevel::Critical => serializer.serialize_str("critical"),
+        }
+    }
 }

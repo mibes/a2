@@ -61,7 +61,7 @@
 //! ## Example sending a silent notification with custom data using certificate authentication:
 //!
 //! ```no_run
-//! #[macro_use] extern crate serde_derive;
+//! use serde::Serialize;
 //!
 //! use a2::{
 //!     Client, Endpoint, SilentNotificationBuilder, NotificationBuilder, NotificationOptions,
@@ -104,9 +104,6 @@
 //!     Ok(())
 //! }
 //! ```
-
-#[macro_use]
-extern crate serde_derive;
 
 #[allow(unused_imports)]
 #[macro_use]

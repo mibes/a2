@@ -1,5 +1,5 @@
 use crate::request::notification::{NotificationBuilder, NotificationOptions};
-use crate::request::payload::{APSAlert, Payload, APS};
+use crate::request::payload::{APSAlert, InterruptionLevel, Payload, APS};
 use std::collections::BTreeMap;
 
 /// A builder to create a simple APNs notification payload.
@@ -22,6 +22,7 @@ pub struct PlainNotificationBuilder<'a> {
     badge: Option<u32>,
     sound: Option<&'a str>,
     category: Option<&'a str>,
+    interruption_level: Option<InterruptionLevel>,
 }
 
 impl<'a> PlainNotificationBuilder<'a> {
@@ -45,6 +46,7 @@ impl<'a> PlainNotificationBuilder<'a> {
             badge: None,
             sound: None,
             category: None,
+            interruption_level: None,
         }
     }
 
@@ -108,6 +110,29 @@ impl<'a> PlainNotificationBuilder<'a> {
         self.category = Some(category);
         self
     }
+
+    /// The importance and delivery timing of a notification.
+    /// The string values “passive”, “active”, “time-sensitive”, or “critical” correspond to the
+    /// UNNotificationInterruptionLevel enumeration cases.
+    ///
+    /// ```rust
+    /// # use a2::request::notification::{PlainNotificationBuilder, NotificationBuilder};
+    /// # use a2::request::payload::InterruptionLevel;
+    /// # fn main() {
+    /// let mut builder = PlainNotificationBuilder::new("a body");
+    /// builder.set_interruption_level(InterruptionLevel::TimeSensitive);
+    /// let payload = builder.build("token", Default::default());
+    ///
+    /// assert_eq!(
+    ///     "{\"aps\":{\"alert\":\"a body\",\"interruption-level\":\"time-sensitive\"}}",
+    ///     &payload.to_json_string().unwrap()
+    /// );
+    /// # }
+    /// ```
+    pub fn set_interruption_level(&mut self, interruption_level: InterruptionLevel) -> &mut Self {
+        self.interruption_level = Some(interruption_level);
+        self
+    }
 }
 
 impl<'a> NotificationBuilder<'a> for PlainNotificationBuilder<'a> {
@@ -121,6 +146,7 @@ impl<'a> NotificationBuilder<'a> for PlainNotificationBuilder<'a> {
                 category: self.category,
                 mutable_content: None,
                 url_args: None,
+                interruption_level: self.interruption_level,
             },
             device_token,
             options,
@@ -131,6 +157,8 @@ impl<'a> NotificationBuilder<'a> for PlainNotificationBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+
     use super::*;
 
     #[test]

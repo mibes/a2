@@ -71,6 +71,7 @@ impl<'a> NotificationBuilder<'a> for SilentNotificationBuilder {
                 category: None,
                 mutable_content: None,
                 url_args: None,
+                interruption_level: None,
             },
             device_token,
             options,
@@ -89,6 +90,8 @@ impl SilentNotificationBuilder {
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+
     use super::*;
     use std::collections::BTreeMap;
 
