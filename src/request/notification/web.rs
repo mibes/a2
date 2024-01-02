@@ -52,7 +52,7 @@ impl<'a> WebNotificationBuilder<'a> {
         WebNotificationBuilder {
             alert,
             sound: None,
-            url_args: url_args,
+            url_args,
         }
     }
 
@@ -109,7 +109,7 @@ mod tests {
                 title: "Hello",
                 body: "world",
             },
-            &vec!["arg1"],
+            &["arg1"],
         )
         .build("device-token", Default::default())
         .to_json_string()

@@ -1,17 +1,16 @@
 //! The client module for sending requests and parsing responses
 
-use crate::error::Error;
-use crate::error::Error::ResponseError;
-use crate::signer::Signer;
-
-use crate::request::payload::Payload;
-use crate::response::Response;
-use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use reqwest::{Body, Client as HttpClient, ClientBuilder, Identity, Method, Request, RequestBuilder, StatusCode};
-use std::future::Future;
-use std::io::Read;
-use std::time::Duration;
-use std::{fmt, str};
+use crate::{
+    error::Error::{self, ResponseError},
+    request::payload::Payload,
+    response::Response,
+    signer::Signer,
+};
+use reqwest::{
+    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
+    Body, Client as HttpClient, ClientBuilder, Identity, RequestBuilder, StatusCode,
+};
+use std::{fmt, future::Future, io::Read, str, time::Duration};
 
 /// The APNs service endpoint to connect.
 #[derive(Debug, Clone)]
@@ -50,7 +49,7 @@ pub struct Client {
 impl Client {
     fn new(signer: Option<Signer>, builder: Option<ClientBuilder>, endpoint: Endpoint) -> Result<Client, Error> {
         let builder = builder
-            .unwrap_or_else(|| HttpClient::builder())
+            .unwrap_or_else(HttpClient::builder)
             .pool_idle_timeout(Some(Duration::from_secs(600)))
             .http2_prior_knowledge();
 
@@ -168,12 +167,17 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::request::notification::NotificationBuilder;
-    use crate::request::notification::PlainNotificationBuilder;
-    use crate::request::notification::{CollapseId, NotificationOptions, Priority};
-    use crate::request::payload::PlainAlert;
-    use crate::signer::Signer;
-    use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+    use crate::{
+        request::{
+            notification::{CollapseId, NotificationBuilder, NotificationOptions, PlainNotificationBuilder, Priority},
+            payload::PlainAlert,
+        },
+        signer::Signer,
+    };
+    use reqwest::{
+        header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
+        Method,
+    };
 
     const PRIVATE_KEY: &str = indoc!(
         "-----BEGIN PRIVATE KEY-----
