@@ -3,13 +3,11 @@
 use crate::error::Error;
 use crate::error::Error::ResponseError;
 use crate::signer::Signer;
-use hyper_alpn::AlpnConnector;
 
 use crate::request::payload::Payload;
 use crate::response::Response;
-use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use hyper::{self, Body, Client as HttpClient, StatusCode};
-use openssl::pkcs12::Pkcs12;
+use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use reqwest::{Body, Client as HttpClient, ClientBuilder, Identity, Method, Request, RequestBuilder, StatusCode};
 use std::future::Future;
 use std::io::Read;
 use std::time::Duration;
@@ -46,20 +44,21 @@ impl fmt::Display for Endpoint {
 pub struct Client {
     endpoint: Endpoint,
     signer: Option<Signer>,
-    http_client: HttpClient<AlpnConnector>,
+    http_client: HttpClient,
 }
 
 impl Client {
-    fn new(connector: AlpnConnector, signer: Option<Signer>, endpoint: Endpoint) -> Client {
-        let mut builder = HttpClient::builder();
-        builder.pool_idle_timeout(Some(Duration::from_secs(600)));
-        builder.http2_only(true);
+    fn new(signer: Option<Signer>, builder: Option<ClientBuilder>, endpoint: Endpoint) -> Result<Client, Error> {
+        let builder = builder
+            .unwrap_or_else(|| HttpClient::builder())
+            .pool_idle_timeout(Some(Duration::from_secs(600)))
+            .http2_prior_knowledge();
 
-        Client {
-            http_client: builder.build(connector),
+        Ok(Client {
+            http_client: builder.build()?,
             signer,
             endpoint,
-        }
+        })
     }
 
     /// Create a connection to APNs using the provider client certificate which
@@ -71,11 +70,10 @@ impl Client {
     {
         let mut cert_der: Vec<u8> = Vec::new();
         certificate.read_to_end(&mut cert_der)?;
+        let identity = Identity::from_pkcs12_der(&cert_der, password)?;
 
-        let pkcs = Pkcs12::from_der(&cert_der)?.parse(password)?;
-        let connector = AlpnConnector::with_client_cert(&pkcs.cert.to_pem()?, &pkcs.pkey.private_key_to_pem_pkcs8()?)?;
-
-        Ok(Self::new(connector, None, endpoint))
+        let builder = HttpClient::builder().identity(identity);
+        Self::new(None, Some(builder), endpoint)
     }
 
     /// Create a connection to APNs using system certificates, signing every
@@ -88,22 +86,20 @@ impl Client {
         T: Into<String>,
         R: Read,
     {
-        let connector = AlpnConnector::new();
         let signature_ttl = Duration::from_secs(60 * 55);
         let signer = Signer::new(pkcs8_pem, key_id, team_id, signature_ttl)?;
 
-        Ok(Self::new(connector, Some(signer), endpoint))
+        Self::new(Some(signer), None, endpoint)
     }
 
     /// Send a notification payload.
     ///
     /// See [ErrorReason](enum.ErrorReason.html) for possible errors.
     pub fn send(&self, payload: Payload<'_>) -> impl Future<Output = Result<Response, Error>> + 'static {
-        let request = self.build_request(payload);
-        let requesting = self.http_client.request(request);
+        let requesting = self.build_request(payload);
 
         async move {
-            let response = requesting.await?;
+            let response = requesting.send().await?;
 
             let apns_id = response
                 .headers()
@@ -118,7 +114,7 @@ impl Client {
                     code: response.status().as_u16(),
                 }),
                 status => {
-                    let body = hyper::body::to_bytes(response).await?;
+                    let body = response.bytes().await?;
 
                     Err(ResponseError(Response {
                         apns_id,
@@ -130,18 +126,18 @@ impl Client {
         }
     }
 
-    fn build_request(&self, payload: Payload<'_>) -> hyper::Request<Body> {
+    fn build_request(&self, payload: Payload<'_>) -> RequestBuilder {
         let path = format!("https://{}/3/device/{}", self.endpoint, payload.device_token);
+        let url = reqwest::Url::parse(&path).unwrap();
 
-        let mut builder = hyper::Request::builder()
-            .uri(&path)
-            .method("POST")
-            .header(CONTENT_TYPE, "application/json");
+        let mut builder = self.http_client.post(url);
+
+        builder = builder.header(CONTENT_TYPE, "application/json".to_string());
 
         if let Some(ref apns_priority) = payload.options.apns_priority {
             builder = builder.header("apns-priority", apns_priority.to_string().as_bytes());
         }
-        if let Some(ref apns_id) = payload.options.apns_id {
+        if let Some(apns_id) = payload.options.apns_id {
             builder = builder.header("apns-id", apns_id.as_bytes());
         }
         if let Some(ref apns_expiration) = payload.options.apns_expiration {
@@ -150,7 +146,7 @@ impl Client {
         if let Some(ref apns_collapse_id) = payload.options.apns_collapse_id {
             builder = builder.header("apns-collapse-id", apns_collapse_id.value.to_string().as_bytes());
         }
-        if let Some(ref apns_topic) = payload.options.apns_topic {
+        if let Some(apns_topic) = payload.options.apns_topic {
             builder = builder.header("apns-topic", apns_topic.as_bytes());
         }
         if let Some(ref signer) = self.signer {
@@ -165,7 +161,7 @@ impl Client {
         builder = builder.header(CONTENT_LENGTH, format!("{}", payload_json.len()).as_bytes());
 
         let request_body = Body::from(payload_json);
-        builder.body(request_body).unwrap()
+        builder.body(request_body)
     }
 }
 
@@ -177,11 +173,9 @@ mod tests {
     use crate::request::notification::{CollapseId, NotificationOptions, Priority};
     use crate::request::payload::PlainAlert;
     use crate::signer::Signer;
-    use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-    use hyper::Method;
-    use hyper_alpn::AlpnConnector;
+    use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 
-    const PRIVATE_KEY: &'static str = indoc!(
+    const PRIVATE_KEY: &str = indoc!(
         "-----BEGIN PRIVATE KEY-----
         MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg8g/n6j9roKvnUkwu
         lCEIvbDqlUhA5FOzcakkG90E8L+hRANCAATKS2ZExEybUvchRDuKBftotMwVEus3
@@ -193,9 +187,9 @@ mod tests {
     fn test_production_request_uri() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
-        let uri = format!("{}", request.uri());
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
+        let uri = format!("{}", request.url());
 
         assert_eq!("https://api.push.apple.com/3/device/a_test_id", &uri);
     }
@@ -204,9 +198,9 @@ mod tests {
     fn test_sandbox_request_uri() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Sandbox);
-        let request = client.build_request(payload);
-        let uri = format!("{}", request.uri());
+        let client = Client::new(None, None, Endpoint::Sandbox).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
+        let uri = format!("{}", request.url());
 
         assert_eq!("https://api.development.push.apple.com/3/device/a_test_id", &uri);
     }
@@ -215,8 +209,8 @@ mod tests {
     fn test_request_method() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
 
         assert_eq!(&Method::POST, request.method());
     }
@@ -225,9 +219,8 @@ mod tests {
     fn test_request_content_type() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
-
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         assert_eq!("application/json", request.headers().get(CONTENT_TYPE).unwrap());
     }
 
@@ -235,8 +228,11 @@ mod tests {
     fn test_request_content_length() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload.clone());
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client
+            .build_request(payload.clone())
+            .build()
+            .expect("Failed to build request");
         let payload_json = payload.to_json_string().unwrap();
         let content_length = request.headers().get(CONTENT_LENGTH).unwrap().to_str().unwrap();
 
@@ -247,8 +243,8 @@ mod tests {
     fn test_request_authorization_with_no_signer() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
 
         assert_eq!(None, request.headers().get(AUTHORIZATION));
     }
@@ -265,8 +261,8 @@ mod tests {
 
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), Some(signer), Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(Some(signer), None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
 
         assert_ne!(None, request.headers().get(AUTHORIZATION));
     }
@@ -275,8 +271,8 @@ mod tests {
     fn test_request_with_default_priority() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_priority = request.headers().get("apns-priority");
 
         assert_eq!(None, apns_priority);
@@ -294,8 +290,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_priority = request.headers().get("apns-priority").unwrap();
 
         assert_eq!("5", apns_priority);
@@ -313,8 +309,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_priority = request.headers().get("apns-priority").unwrap();
 
         assert_eq!("10", apns_priority);
@@ -326,8 +322,8 @@ mod tests {
 
         let payload = builder.build("a_test_id", Default::default());
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_id = request.headers().get("apns-id");
 
         assert_eq!(None, apns_id);
@@ -345,8 +341,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_id = request.headers().get("apns-id").unwrap();
 
         assert_eq!("a-test-apns-id", apns_id);
@@ -358,8 +354,8 @@ mod tests {
 
         let payload = builder.build("a_test_id", Default::default());
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_expiration = request.headers().get("apns-expiration");
 
         assert_eq!(None, apns_expiration);
@@ -377,8 +373,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_expiration = request.headers().get("apns-expiration").unwrap();
 
         assert_eq!("420", apns_expiration);
@@ -390,8 +386,8 @@ mod tests {
 
         let payload = builder.build("a_test_id", Default::default());
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_collapse_id = request.headers().get("apns-collapse-id");
 
         assert_eq!(None, apns_collapse_id);
@@ -409,8 +405,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_collapse_id = request.headers().get("apns-collapse-id").unwrap();
 
         assert_eq!("a_collapse_id", apns_collapse_id);
@@ -422,8 +418,8 @@ mod tests {
 
         let payload = builder.build("a_test_id", Default::default());
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_topic = request.headers().get("apns-topic");
 
         assert_eq!(None, apns_topic);
@@ -441,8 +437,8 @@ mod tests {
             },
         );
 
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload);
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client.build_request(payload).build().expect("Failed to build request");
         let apns_topic = request.headers().get("apns-topic").unwrap();
 
         assert_eq!("a_topic", apns_topic);
@@ -452,10 +448,13 @@ mod tests {
     async fn test_request_body() {
         let builder = PlainNotificationBuilder::new(PlainAlert::new("test"));
         let payload = builder.build("a_test_id", Default::default());
-        let client = Client::new(AlpnConnector::new(), None, Endpoint::Production);
-        let request = client.build_request(payload.clone());
+        let client = Client::new(None, None, Endpoint::Production).expect("Failed to create client");
+        let request = client
+            .build_request(payload.clone())
+            .build()
+            .expect("Failed to build request");
 
-        let body = hyper::body::to_bytes(request).await.unwrap();
+        let body = request.body().expect("should have a body").as_bytes().unwrap();
         let body_str = String::from_utf8(body.to_vec()).unwrap();
 
         assert_eq!(payload.to_json_string().unwrap(), body_str,);

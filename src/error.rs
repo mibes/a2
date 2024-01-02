@@ -12,7 +12,7 @@ pub enum Error {
 
     /// A problem connecting to APNs servers.
     #[error("Error connecting to APNs: {0}")]
-    ConnectionError(#[from] hyper::Error),
+    ConnectionError(#[from] reqwest::Error),
 
     /// Couldn't generate an APNs token with the given key.
     #[error("Error creating a signature: {0}")]
